@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DevPrep – Interview Question Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- PARTICLE CANVAS -->
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- LOADER -->
+  <div class="loader" id="loader">
+    <div class="loader-inner">
+      <div class="loader-logo">
+        <span class="loader-bracket">{</span>
+        <span class="loader-text">DevPrep</span>
+        <span class="loader-bracket">}</span>
+      </div>
+      <div class="loader-bar-wrap"><div class="loader-bar" id="loaderBar"></div></div>
+      <p class="loader-sub">Loading your prep space...</p>
+    </div>
+  </div>
+
+  <!-- CURSOR -->
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-follower" id="cursorFollower"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="sb-bracket">{</span>
+      <span class="sb-name">Dev<span class="accent">Prep</span></span>
+      <span class="sb-bracket">}</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">⚡</span><span class="nav-label">Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="questions">
+        <span class="nav-icon">📋</span><span class="nav-label">Questions</span>
+      </a>
+      <a href="#" class="nav-item" data-page="add">
+        <span class="nav-icon">➕</span><span class="nav-label">Add Question</span>
+      </a>
+      <a href="#" class="nav-item" data-page="analytics">
+        <span class="nav-icon">📊</span><span class="nav-label">Analytics</span>
+      </a>
+      <a href="#" class="nav-item" data-page="weak">
+        <span class="nav-icon">🔥</span><span class="nav-label">Weak Topics</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="streak-badge" id="streakBadge">
+        <span class="streak-fire">🔥</span>
+        <span class="streak-num" id="streakNum">0</span>
+        <span class="streak-label">day streak</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- HAMBURGER -->
+  <button class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </button>
+
+  <!-- MAIN -->
+  <main class="main" id="main">
+
+    <!-- PAGE: DASHBOARD -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Dashboard">Dashboard</h1>
+        <p class="page-sub">Your interview prep at a glance</p>
+      </div>
+
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card" data-color="cyan">
+          <div class="stat-icon">📚</div>
+          <div class="stat-num" id="statTotal">0</div>
+          <div class="stat-label">Total Questions</div>
+          <div class="stat-glow"></div>
+        </div>
+        <div class="stat-card" data-color="green">
+          <div class="stat-icon">✅</div>
+          <div class="stat-num" id="statSolved">0</div>
+          <div class="stat-label">Solved</div>
+          <div class="stat-glow"></div>
+        </div>
+        <div class="stat-card" data-color="orange">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-num" id="statUnsolved">0</div>
+          <div class="stat-label">Unsolved</div>
+          <div class="stat-glow"></div>
+        </div>
+        <div class="stat-card" data-color="purple">
+          <div class="stat-icon">🔁</div>
+          <div class="stat-num" id="statRevisit">0</div>
+          <div class="stat-label">Revisit</div>
+          <div class="stat-glow"></div>
+        </div>
+      </div>
+
+      <!-- PROGRESS RING -->
+      <div class="progress-section">
+        <div class="progress-ring-wrap">
+          <svg class="progress-ring" viewBox="0 0 200 200">
+            <defs>
+              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#00f5d4"/>
+                <stop offset="100%" style="stop-color:#7c3aed"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg" cx="100" cy="100" r="80"/>
+            <circle class="ring-progress" id="ringProgress" cx="100" cy="100" r="80" stroke="url(#ringGrad)"/>
+          </svg>
+          <div class="ring-center">
+            <span class="ring-pct" id="ringPct">0%</span>
+            <span class="ring-text">Complete</span>
+          </div>
+        </div>
+
+        <div class="difficulty-bars">
+          <h3 class="section-title">Difficulty Breakdown</h3>
+          <div class="diff-bar-item">
+            <span class="diff-label easy-label">Easy</span>
+            <div class="diff-bar-track">
+              <div class="diff-bar-fill easy-fill" id="easyBar"></div>
+            </div>
+            <span class="diff-count" id="easyCount">0/0</span>
+          </div>
+          <div class="diff-bar-item">
+            <span class="diff-label medium-label">Medium</span>
+            <div class="diff-bar-track">
+              <div class="diff-bar-fill medium-fill" id="mediumBar"></div>
+            </div>
+            <span class="diff-count" id="mediumCount">0/0</span>
+          </div>
+          <div class="diff-bar-item">
+            <span class="diff-label hard-label">Hard</span>
+            <div class="diff-bar-track">
+              <div class="diff-bar-fill hard-fill" id="hardBar"></div>
+            </div>
+            <span class="diff-count" id="hardCount">0/0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT SOLVED -->
+      <div class="recent-section">
+        <h3 class="section-title">⚡ Recently Solved</h3>
+        <div class="recent-list" id="recentList">
+          <div class="empty-state">No solved questions yet. Start grinding! 💪</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: QUESTIONS -->
+    <section class="page" id="page-questions">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Questions">Questions</h1>
+        <p class="page-sub">All your tracked questions</p>
+      </div>
+
+      <div class="filters-bar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="Search questions..."/>
+        </div>
+        <div class="filter-chips">
+          <select id="filterTopic" class="filter-select">
+            <option value="">All Topics</option>
+          </select>
+          <select id="filterDifficulty" class="filter-select">
+            <option value="">All Difficulties</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <select id="filterStatus" class="filter-select">
+            <option value="">All Status</option>
+            <option value="solved">Solved</option>
+            <option value="unsolved">Unsolved</option>
+            <option value="revisit">Revisit</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="questions-grid" id="questionsGrid">
+        <div class="empty-state">Add questions to get started! 🚀</div>
+      </div>
+    </section>
+
+    <!-- PAGE: ADD QUESTION -->
+    <section class="page" id="page-add">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Add Question">Add Question</h1>
+        <p class="page-sub">Track a new problem</p>
+      </div>
+
+      <div class="form-card">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label class="form-label">Question Title *</label>
+            <input type="text" id="qTitle" class="form-input" placeholder="e.g. Two Sum, Binary Search..."/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Topic *</label>
+            <input type="text" id="qTopic" class="form-input" placeholder="Arrays, Trees, DP..."/>
+            <div class="topic-suggestions" id="topicSuggestions"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Difficulty *</label>
+            <div class="diff-selector" id="diffSelector">
+              <button class="diff-btn easy-btn" data-diff="easy">Easy</button>
+              <button class="diff-btn medium-btn" data-diff="medium">Medium</button>
+              <button class="diff-btn hard-btn" data-diff="hard">Hard</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <div class="status-selector" id="statusSelector">
+              <button class="status-btn unsolved-btn active" data-status="unsolved">Unsolved</button>
+              <button class="status-btn solved-btn" data-status="solved">Solved</button>
+              <button class="status-btn revisit-btn" data-status="revisit">Revisit</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">LeetCode URL</label>
+            <input type="url" id="qUrl" class="form-input" placeholder="https://leetcode.com/problems/..."/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Time Complexity</label>
+            <input type="text" id="qTime" class="form-input" placeholder="O(n), O(n log n)..."/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Space Complexity</label>
+            <input type="text" id="qSpace" class="form-input" placeholder="O(1), O(n)..."/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tags (comma separated)</label>
+            <input type="text" id="qTags" class="form-input" placeholder="two-pointer, sliding-window..."/>
+          </div>
+          <div class="form-group full-width">
+            <label class="form-label">Notes / Approach</label>
+            <textarea id="qNotes" class="form-textarea" placeholder="Write your approach, intuition, key observations..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-reset" id="resetForm">Reset</button>
+          <button class="btn-submit" id="submitQuestion">
+            <span class="btn-text">Add Question</span>
+            <span class="btn-spark">✨</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE: ANALYTICS -->
+    <section class="page" id="page-analytics">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Analytics">Analytics</h1>
+        <p class="page-sub">Deep dive into your performance</p>
+      </div>
+
+      <div class="analytics-grid" id="analyticsGrid">
+        <div class="empty-state">Add more questions to see analytics! 📊</div>
+      </div>
+    </section>
+
+    <!-- PAGE: WEAK TOPICS -->
+    <section class="page" id="page-weak">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Weak Topics">Weak Topics</h1>
+        <p class="page-sub">Focus here to level up 🔥</p>
+      </div>
+      <div class="weak-grid" id="weakGrid">
+        <div class="empty-state">No weak topics found! You're killing it 💪</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- TOAST -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- QUESTION MODAL -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-content" id="modalContent"></div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
