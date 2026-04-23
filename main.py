@@ -16,6 +16,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from pydantic import BaseModel
+
 from auth import (
     create_access_token,
     get_current_user,
@@ -24,6 +26,7 @@ from auth import (
 )
 from database import load_data, save_data
 from models import LoginRequest, QuestionCreate, QuestionUpdate, SignupRequest
+import discover
 
 app = FastAPI(title="DevPrep API", version="2.0.0")
 
@@ -302,6 +305,134 @@ def topics(current=Depends(get_current_user)):
     data = load_data()
     qs = _user_questions(data, current["user_id"])
     return ok(data={"topics": sorted({q["topic"] for q in qs})})
+
+
+# ── Discover (live LeetCode feed) ───────────────────────────────────────────
+@app.get("/discover")
+async def discover_problems(
+    skip: int = 0,
+    limit: int = 30,
+    difficulty: Optional[str] = None,
+    search: Optional[str] = None,
+    tag: Optional[str] = None,
+    current=Depends(get_current_user),
+):
+    """
+    Live LeetCode problem list. Results are cached server-side (10 min TTL).
+    Also attaches `tracked: true` to any problem the user already has in their list.
+    """
+    # Clamp pagination defensively.
+    limit = max(1, min(limit, 50))
+    skip = max(0, skip)
+
+    if difficulty and difficulty.lower() not in ("easy", "medium", "hard"):
+        raise HTTPException(400, "Invalid difficulty (easy/medium/hard).")
+
+    try:
+        result = await discover.fetch_problems(
+            skip=skip, limit=limit,
+            difficulty=difficulty, search=search, tag=tag,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't reach LeetCode ({type(e).__name__}).")
+
+    # Mark which problems the current user already tracks so the UI can show it.
+    data = load_data()
+    tracked_slugs = {
+        q.get("leetcode_slug")
+        for q in _user_questions(data, current["user_id"])
+        if q.get("leetcode_slug")
+    }
+    for q in result["questions"]:
+        q["tracked"] = q["slug"] in tracked_slugs
+
+    return ok(data=result)
+
+
+@app.get("/discover/daily")
+async def discover_daily(current=Depends(get_current_user)):
+    try:
+        daily = await discover.fetch_daily()
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't reach LeetCode ({type(e).__name__}).")
+
+    data = load_data()
+    tracked_slugs = {
+        q.get("leetcode_slug")
+        for q in _user_questions(data, current["user_id"])
+        if q.get("leetcode_slug")
+    }
+    daily["tracked"] = daily["slug"] in tracked_slugs
+    return ok(data=daily)
+
+
+class TrackFromDiscover(BaseModel):
+    slug: str
+
+
+@app.post("/questions/from-discover")
+def track_from_discover(payload: TrackFromDiscover, current=Depends(get_current_user)):
+    """
+    Import a LeetCode problem (by slug) into the user's tracked list.
+    Idempotent: if already tracked, returns the existing question.
+    """
+    # We rely on /discover having been hit recently to populate the cache.
+    # Fall back to a minimal fetch if not cached.
+    slug = payload.slug.strip().lower()
+    if not slug:
+        raise HTTPException(400, "slug is required.")
+
+    # Look through all cached problem pages for a matching slug.
+    from discover import _cache
+    found = None
+    for key, (_, value) in list(_cache.items()):
+        if not key.startswith("problems:") and key != "daily":
+            continue
+        if key == "daily":
+            if value.get("slug") == slug:
+                found = value
+                break
+        else:
+            for q in value.get("questions", []):
+                if q["slug"] == slug:
+                    found = q
+                    break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(
+            status_code=404,
+            detail="Problem not in recent cache. Refresh Discover and try again.",
+        )
+
+    # Check for duplicate
+    data = load_data()
+    for q in _user_questions(data, current["user_id"]):
+        if q.get("leetcode_slug") == slug:
+            return ok(data=q, message="Already in your list.")
+
+    now = datetime.utcnow().isoformat()
+    new_q = {
+        "id": str(uuid.uuid4())[:8],
+        "user_id": current["user_id"],
+        "title": found["title"],
+        "topic": (found.get("tags") or ["General"])[0],
+        "difficulty": found["difficulty"],
+        "status": "unsolved",
+        "notes": "",
+        "tags": found.get("tags", []),
+        "leetcode_url": found.get("url") or f"https://leetcode.com/problems/{slug}/",
+        "leetcode_slug": slug,
+        "time_complexity": None,
+        "space_complexity": None,
+        "created_at": now,
+        "solved_at": None,
+        "attempts": 0,
+    }
+    data["questions"].append(new_q)
+    save_data(data)
+    return ok(data=new_q, message="Added to your list.")
 
 
 if __name__ == "__main__":

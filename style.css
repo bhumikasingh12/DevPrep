@@ -453,6 +453,126 @@ body:has(.btn-submit:hover) .cursor { width: 16px; height: 16px; }
   transform: translateY(-1px);
 }
 
+/* ---- DAILY CHALLENGE CARD (dashboard) ---- */
+.daily-card {
+  background: linear-gradient(135deg, rgba(0,245,212,0.06), rgba(124,58,237,0.06));
+  border: 1px solid var(--border2);
+  border-radius: var(--radius2);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.daily-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+}
+.daily-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.daily-badge {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 0.3rem 0.7rem;
+  background: rgba(0,245,212,0.08);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+}
+.daily-date {
+  font-size: 0.75rem;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+.daily-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.daily-main { min-width: 0; flex: 1; }
+.daily-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+}
+.daily-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.daily-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* ---- DISCOVER PAGE ---- */
+.discover-pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.discover-page-info {
+  color: var(--text3);
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+}
+
+/* Card tweaks for discover results — reuse .q-card base, add premium/tracked tags */
+.q-premium-tag {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 4px;
+  color: var(--accent3);
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.q-tracked-tag {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 4px;
+  color: var(--easy);
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.q-btn.track-btn {
+  background: rgba(0,245,212,0.08);
+  border-color: var(--border2);
+  color: var(--accent);
+}
+.q-btn.track-btn:hover {
+  background: rgba(0,245,212,0.15);
+  box-shadow: 0 0 10px rgba(0,245,212,0.2);
+}
+.q-btn.track-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: rgba(255,255,255,0.02);
+}
+.q-acceptance {
+  font-size: 0.7rem;
+  color: var(--text3);
+  letter-spacing: 1px;
+}
+
 /* ---- HAMBURGER ---- */
 .hamburger {
   display: none;
