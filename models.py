@@ -8,7 +8,7 @@ Difficulty = Literal["easy", "medium", "hard"]
 Status = Literal["solved", "unsolved", "revisit"]
 
 
-# ── Auth ────────────────────────────────────────────────────────────────────
+# Auth 
 class SignupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     email: EmailStr
@@ -20,7 +20,7 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=128)
 
 
-# ── Questions ───────────────────────────────────────────────────────────────
+# Questions 
 class QuestionCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     topic: str = Field(..., min_length=1, max_length=80)

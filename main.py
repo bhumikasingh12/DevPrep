@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 
-# ── Response envelope helpers ───────────────────────────────────────────────
+# Response envelope helpers 
 def ok(data: Any = None, message: str = "") -> dict:
     return {"success": True, "data": data, "message": message}
 
@@ -45,7 +45,7 @@ def fail(message: str, data: Any = None) -> dict:
     return {"success": False, "data": data, "message": message}
 
 
-# ── Global error handlers: wrap errors in the same envelope ─────────────────
+# Global error handlers: wrap errors in the same envelope 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_: Request, exc: HTTPException):
     return JSONResponse(
@@ -66,7 +66,7 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError):
     )
 
 
-# ── Public ──────────────────────────────────────────────────────────────────
+# Public 
 @app.get("/")
 def root():
     return ok(
@@ -75,7 +75,7 @@ def root():
     )
 
 
-# ── Auth routes ─────────────────────────────────────────────────────────────
+# Auth routes
 @app.post("/auth/signup")
 def signup(payload: SignupRequest):
     data = load_data()
@@ -140,7 +140,7 @@ def me(current=Depends(get_current_user)):
     return ok(data={"id": user["id"], "name": user["name"], "email": user["email"]})
 
 
-# ── Questions (protected) ───────────────────────────────────────────────────
+# Questions (protected)
 def _user_questions(data: dict, user_id: str) -> list:
     return [q for q in data["questions"] if q.get("user_id") == user_id]
 
@@ -216,7 +216,7 @@ def delete_question(question_id: str, current=Depends(get_current_user)):
     return ok(message="Question deleted.")
 
 
-# ── Analytics (protected) ───────────────────────────────────────────────────
+# Analytics (protected) 
 def _compute_streak(questions: list) -> int:
     """Count consecutive days (ending today or yesterday) with at least one solve."""
     from datetime import date, timedelta
@@ -233,7 +233,7 @@ def _compute_streak(questions: list) -> int:
             streak += 1
         else:
             if i == 0:
-                continue  # today may not have a solve yet
+                continue 
             break
     return streak
 

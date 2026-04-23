@@ -366,7 +366,7 @@
   <script>
     const API_BASE = 'http://127.0.0.1:8000';
 
-    // ── Custom cursor ──────────────────────────────────────────────────────────
+    // Custom cursor
     const cursor = document.getElementById('cursor');
     const follower = document.getElementById('cursorFollower');
     document.addEventListener('mousemove', e => {
@@ -376,7 +376,7 @@
       follower.style.top  = `${e.clientY}px`;
     });
 
-    // ── Particles ──────────────────────────────────────────────────────────────
+    // Particles
     (function initParticles() {
       const canvas = document.getElementById('particleCanvas');
       const ctx = canvas.getContext('2d');
@@ -418,7 +418,7 @@
       })();
     })();
 
-    // ── Form logic ─────────────────────────────────────────────────────────────
+    // Form logic
     const emailEl    = document.getElementById('email');
     const passwordEl = document.getElementById('password');
     const loginBtn   = document.getElementById('loginBtn');

@@ -1,7 +1,6 @@
-/* =========================================
-   DEVPREP – STYLE.CSS
-   Dark Futuristic Hacker Aesthetic
-   ========================================= */
+body{
+    user-select: none;
+}
 
 :root {
   --bg: #040810;
@@ -78,7 +77,7 @@ body {
 }
 body:has(.btn-submit:hover) .cursor { width: 16px; height: 16px; }
 
-/* ---- LOADER ---- */
+/*LOADER */
 .loader {
   position: fixed; inset: 0;
   background: var(--bg);
@@ -134,7 +133,7 @@ body:has(.btn-submit:hover) .cursor { width: 16px; height: 16px; }
   text-transform: uppercase;
 }
 
-/* ---- SIDEBAR ---- */
+/*SIDEBAR */
 .sidebar {
   position: fixed;
   left: 0; top: 0;
@@ -220,7 +219,7 @@ body:has(.btn-submit:hover) .cursor { width: 16px; height: 16px; }
 }
 .streak-label { font-size: 0.75rem; color: var(--text3); }
 
-/* ---- PROFILE CARD (sidebar footer) ---- */
+/*PROFILE CARD (sidebar footer)*/
 .profile-card {
   display: flex;
   align-items: center;
@@ -287,7 +286,7 @@ body:has(.btn-submit:hover) .cursor { width: 16px; height: 16px; }
   color: var(--accent);
 }
 
-/* ---- PROFILE DROPDOWN MENU ---- */
+/*PROFILE DROPDOWN MENU*/
 .profile-menu {
   margin-top: 0.5rem;
   background: var(--bg3);

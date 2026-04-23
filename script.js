@@ -4,11 +4,10 @@
    from the server. Every user action calls the API and re-syncs state.
 */
 
-// ── Config ──────────────────────────────────────────────────────────────────
 const API_BASE = 'http://127.0.0.1:8000';
 const TOKEN_KEY = 'devprep_token';
 
-// ── Auth gate: redirect to login if no token ────────────────────────────────
+
 (function requireAuth() {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
@@ -16,7 +15,7 @@ const TOKEN_KEY = 'devprep_token';
   }
 })();
 
-// ── DOM references ──────────────────────────────────────────────────────────
+// DOM references
 const dom = {
   loader:           document.getElementById('loader'),
   loaderBar:        document.getElementById('loaderBar'),
@@ -82,16 +81,16 @@ const dom = {
   profileSignoutBtn:   document.getElementById('profileSignoutBtn'),
 };
 
-// ── App state (in-memory mirror of server data; no persistence) ─────────────
+//  App state (in-memory mirror of server data; no persistence) 
 let questions     = [];
-let analyticsData = null;   // last fetched /analytics response
-let currentUser   = null;   // { id, name, email } from /auth/me
+let analyticsData = null;  
+let currentUser   = null;   
 let currentEditId = null;
 let particles     = [];
 let canvasContext = null;
 let canvasSize    = { width: 0, height: 0 };
 
-// ── API helper ──────────────────────────────────────────────────────────────
+// API helper
 async function api(path, { method = 'GET', body = null } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const headers = { 'Content-Type': 'application/json' };
@@ -125,7 +124,6 @@ async function api(path, { method = 'GET', body = null } = {}) {
   return json ? json.data : null;
 }
 
-// ── Utilities ───────────────────────────────────────────────────────────────
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString(undefined, {
@@ -168,7 +166,7 @@ function setBusy(buttonEl, busy, busyText) {
   }
 }
 
-// ── Form helpers ────────────────────────────────────────────────────────────
+//Form helpers
 function resetFormFields() {
   currentEditId = null;
   dom.qTitle.value  = '';
@@ -199,7 +197,7 @@ function fillForm(questionId) {
   dom.submitQuestion.querySelector('.btn-text').textContent = 'Save Changes';
 }
 
-// ── Topic dropdown ──────────────────────────────────────────────────────────
+// Topic dropdown 
 function buildTopicOptions() {
   const topics = Array.from(
     new Set(questions.map((q) => q.topic).filter(Boolean))
@@ -210,7 +208,7 @@ function buildTopicOptions() {
   ].join('');
 }
 
-// ── Filtering ───────────────────────────────────────────────────────────────
+//Filtering
 function getFilteredQuestions() {
   const searchTerm = dom.searchInput.value.trim().toLowerCase();
   const topic      = dom.filterTopic.value;
@@ -451,8 +449,7 @@ function rerenderAll() {
   renderWeakTopics();
 }
 
-// ── Topic autocomplete ──────────────────────────────────────────────────────
-function updateTopicSuggestions() {
+// Topic autocomplete
   const value  = dom.qTopic.value.trim().toLowerCase();
   const topics = Array.from(new Set(questions.map((q) => q.topic))).filter(Boolean);
   const filtered = topics
@@ -478,7 +475,7 @@ function updateTopicSuggestions() {
   });
 }
 
-// ── Toast ───────────────────────────────────────────────────────────────────
+// Toast
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className    = `toast ${type}`;
@@ -490,7 +487,7 @@ function showToast(message, type = 'success') {
   }, 2200);
 }
 
-// ── Modal ───────────────────────────────────────────────────────────────────
+// Modal
 function openModal(questionId) {
   const q = questions.find((item) => item.id === questionId);
   if (!q) return;
@@ -567,7 +564,7 @@ function closeModal() {
   dom.modalOverlay.classList.remove('open');
 }
 
-// ── Profile ─────────────────────────────────────────────────────────────────
+
 function getInitials(name, email) {
   const source = (name || email || '?').trim();
   if (!source) return '?';
@@ -610,7 +607,6 @@ async function loadCurrentUser() {
     currentUser = await api('/auth/me');
     renderProfile();
   } catch (err) {
-    // /auth/me failure with a valid token shouldn't happen; 401 already redirects.
     console.warn('Failed to load user profile:', err.message);
   }
 }
@@ -643,7 +639,7 @@ async function loadAnalytics() {
   try {
     analyticsData = await api('/analytics');
   } catch (err) {
-    // silent on analytics failure — renderers fall back to local aggregation
+   
     analyticsData = null;
   }
 }
@@ -655,7 +651,7 @@ async function refreshAll() {
   renderProfileStats();
 }
 
-// ── Question actions (all via API) ──────────────────────────────────────────
+
 async function toggleSolved(questionId, triggerBtn) {
   const q = questions.find((item) => item.id === questionId);
   if (!q) return;
@@ -686,10 +682,9 @@ async function deleteQuestion(questionId, triggerBtn) {
     showToast(err.message, 'error');
     setBusy(triggerBtn, false);
   }
-  // on success the button's DOM is gone after refreshAll(); no need to un-busy.
 }
 
-// ── Form submission ─────────────────────────────────────────────────────────
+//  Form submission 
 async function submitQuestion(event) {
   event.preventDefault();
 
@@ -732,7 +727,7 @@ async function submitQuestion(event) {
   }
 }
 
-// ── Navigation ──────────────────────────────────────────────────────────────
+// Navigation 
 function navigate(pageId) {
   dom.pages.forEach((page) => {
     page.classList.toggle('active', page.id === `page-${pageId}`);
@@ -759,7 +754,7 @@ function navigate(pageId) {
   }
 }
 
-// ── Event listeners ─────────────────────────────────────────────────────────
+// Event listeners 
 function attachListeners() {
   dom.navItems.forEach((item) => {
     item.addEventListener('click', (e) => {
@@ -838,12 +833,11 @@ function attachListeners() {
     });
   }
 
-  // Sign out button on the profile page
+  // Sign out button 
   if (dom.profileSignoutBtn) {
     dom.profileSignoutBtn.addEventListener('click', signOut);
   }
 
-  // Click outside profile menu closes it
   document.addEventListener('click', (e) => {
     if (!dom.profileMenu || !dom.profileBtn) return;
     if (!dom.profileMenu.classList.contains('open')) return;
@@ -852,7 +846,7 @@ function attachListeners() {
   });
 }
 
-// ── Particles (unchanged) ───────────────────────────────────────────────────
+// Particles (unchanged) 
 function initializeParticles() {
   const canvas = dom.particleCanvas;
   if (!canvas) return;
@@ -915,7 +909,7 @@ function updateParticles() {
   requestAnimationFrame(updateParticles);
 }
 
-// ── Loader animation (unchanged) ────────────────────────────────────────────
+// Loader animation
 function playLoader() {
   let progress = 0;
   const interval = setInterval(() => {
@@ -928,14 +922,14 @@ function playLoader() {
   }, 80);
 }
 
-// ── Bootstrap ───────────────────────────────────────────────────────────────
+//Bootstrap 
 async function init() {
   attachListeners();
   resetFormFields();
   initializeParticles();
   playLoader();
   await Promise.all([loadCurrentUser(), refreshAll()]);
-  renderProfile(); // ensure stats re-render once both user and analytics arrived
+  renderProfile(); 
 }
 
 document.addEventListener('DOMContentLoaded', init);

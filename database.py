@@ -14,8 +14,8 @@ _lock = threading.Lock()
 
 def _default_data() -> Dict[str, Any]:
     return {
-        "users": [],       # [{id, name, email, password_hash, created_at}]
-        "questions": [],   # each question now carries a user_id
+        "users": [],       
+        "questions": [],  
     }
 
 
@@ -27,7 +27,6 @@ def load_data() -> Dict[str, Any]:
             return data
         with open(DATA_FILE, "r") as f:
             data = json.load(f)
-        # Migrate legacy files that predate auth.
         changed = False
         if "users" not in data:
             data["users"] = []
