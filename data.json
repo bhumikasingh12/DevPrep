@@ -8,5 +8,26 @@
       "created_at": "2026-04-23T17:48:01.536312"
     }
   ],
-  "questions": []
+  "questions": [
+    {
+      "title": "binary search",
+      "topic": "Searching / Binary Search",
+      "difficulty": "easy",
+      "status": "unsolved",
+      "notes": "Binary Search works on sorted arrays.\n\nSteps:\n1. Take two pointers: low = 0, high = n-1\n2. Find mid = (low + high) / 2\n3. If target == arr[mid] \u2192 return index\n4. If target < arr[mid] \u2192 search left (high = mid - 1)\n5. If target > arr[mid] \u2192 search right (low = mid + 1)\n\nRepeat until found or low > high.\n\nKey point:\nArray must be sorted.",
+      "tags": [
+        "binary-search",
+        "array",
+        "searching"
+      ],
+      "leetcode_url": "https://leetcode.com/problems/binary-search/",
+      "time_complexity": "O(log n)",
+      "space_complexity": "O(1)",
+      "id": "021f54d1",
+      "user_id": "263885af-753",
+      "created_at": "2026-04-23T18:22:27.347507",
+      "solved_at": null,
+      "attempts": 0
+    }
+  ]
 }

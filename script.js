@@ -79,6 +79,18 @@ const dom = {
   pfCompletion:        document.getElementById('pfCompletion'),
   pfStreak:            document.getElementById('pfStreak'),
   profileSignoutBtn:   document.getElementById('profileSignoutBtn'),
+
+  // Daily challenge (dashboard) + Discover page
+  dailyBody:           document.getElementById('dailyBody'),
+  dailyDate:           document.getElementById('dailyDate'),
+  discoverGrid:        document.getElementById('discoverGrid'),
+  discoverSearch:      document.getElementById('discoverSearch'),
+  discoverDifficulty:  document.getElementById('discoverDifficulty'),
+  discoverRefresh:     document.getElementById('discoverRefresh'),
+  discoverPager:       document.getElementById('discoverPager'),
+  discoverPrev:        document.getElementById('discoverPrev'),
+  discoverNext:        document.getElementById('discoverNext'),
+  discoverPageInfo:    document.getElementById('discoverPageInfo'),
 };
 
 //  App state (in-memory mirror of server data; no persistence) 
@@ -86,6 +98,14 @@ let questions     = [];
 let analyticsData = null;  
 let currentUser   = null;   
 let currentEditId = null;
+
+// Discover state
+const DISCOVER_PAGE_SIZE = 20;
+let discoverSkip  = 0;
+let discoverTotal = 0;
+let discoverBusy  = false;
+let discoverSearchTimer = null;
+let dailyChallenge = null;
 let particles     = [];
 let canvasContext = null;
 let canvasSize    = { width: 0, height: 0 };
@@ -564,6 +584,168 @@ function closeModal() {
   dom.modalOverlay.classList.remove('open');
 }
 
+<<<<<<< HEAD
+=======
+// ── Daily Challenge (dashboard) ─────────────────────────────────────────────
+async function loadDailyChallenge() {
+  if (!dom.dailyBody) return;
+  try {
+    dailyChallenge = await api('/discover/daily');
+    renderDailyChallenge();
+  } catch (err) {
+    dom.dailyBody.innerHTML = `<div class="empty-state">Couldn't load today's challenge. ${escapeHTML(err.message)}</div>`;
+  }
+}
+
+function renderDailyChallenge() {
+  if (!dailyChallenge || !dom.dailyBody) return;
+  const d = dailyChallenge;
+  dom.dailyDate.textContent = d.date || '';
+
+  const diffClass = `${d.difficulty}-badge`;
+  const tags = (d.tags || []).slice(0, 3)
+    .map((t) => `<span class="q-tag">${escapeHTML(t)}</span>`).join('');
+
+  dom.dailyBody.innerHTML = `
+    <div class="daily-main">
+      <div class="daily-title">#${escapeHTML(d.frontend_id)} · ${escapeHTML(d.title)}</div>
+      <div class="daily-meta">
+        <span class="q-badge ${diffClass}">${escapeHTML(d.difficulty)}</span>
+        <span class="q-acceptance">${d.acceptance_rate}% acceptance</span>
+        ${tags}
+      </div>
+    </div>
+    <div class="daily-actions">
+      <a class="q-btn" href="${escapeHTML(d.url)}" target="_blank" rel="noreferrer">Open ↗</a>
+      <button class="q-btn track-btn" id="dailyTrackBtn" ${d.tracked ? 'disabled' : ''}>
+        ${d.tracked ? '✓ Tracked' : '+ Track'}
+      </button>
+    </div>
+  `;
+  const btn = document.getElementById('dailyTrackBtn');
+  if (btn && !d.tracked) {
+    btn.addEventListener('click', () => trackFromDiscover(d.slug, btn));
+  }
+}
+
+// ── Discover page ───────────────────────────────────────────────────────────
+function discoverFiltersFromDOM() {
+  return {
+    search:     dom.discoverSearch.value.trim() || undefined,
+    difficulty: dom.discoverDifficulty.value || undefined,
+  };
+}
+
+async function loadDiscover() {
+  if (discoverBusy) return;
+  discoverBusy = true;
+  dom.discoverGrid.innerHTML = '<div class="empty-state">Fetching live problems from LeetCode…</div>';
+
+  const { search, difficulty } = discoverFiltersFromDOM();
+  const params = new URLSearchParams();
+  params.set('skip',  String(discoverSkip));
+  params.set('limit', String(DISCOVER_PAGE_SIZE));
+  if (difficulty) params.set('difficulty', difficulty);
+  if (search)     params.set('search', search);
+
+  try {
+    const res = await api(`/discover?${params.toString()}`);
+    discoverTotal = res.total || 0;
+    renderDiscover(res.questions || []);
+    renderDiscoverPager();
+  } catch (err) {
+    dom.discoverGrid.innerHTML = `<div class="empty-state">Couldn't load problems. ${escapeHTML(err.message)}</div>`;
+    dom.discoverPager.style.display = 'none';
+  } finally {
+    discoverBusy = false;
+  }
+}
+
+function renderDiscover(problems) {
+  if (!problems.length) {
+    dom.discoverGrid.innerHTML = '<div class="empty-state">No problems matched. Try clearing filters.</div>';
+    return;
+  }
+
+  dom.discoverGrid.innerHTML = problems.map((p) => {
+    const tags = (p.tags || []).slice(0, 4)
+      .map((t) => `<span class="q-tag">${escapeHTML(t)}</span>`).join('');
+    const trackLabel = p.tracked ? '✓ Tracked' : '+ Track';
+    const trackDisabled = p.tracked ? 'disabled' : '';
+
+    return `
+      <article class="q-card ${escapeHTML(p.difficulty)}" data-slug="${escapeHTML(p.slug)}">
+        <div class="q-card-header">
+          <div>
+            <h3 class="q-title">#${escapeHTML(p.frontend_id)} · ${escapeHTML(p.title)}</h3>
+            <div class="q-meta">
+              <span class="q-badge ${escapeHTML(p.difficulty)}-badge">${escapeHTML(p.difficulty)}</span>
+              ${p.paid_only ? '<span class="q-premium-tag">Premium</span>' : ''}
+              ${p.tracked ? '<span class="q-tracked-tag">Tracked</span>' : ''}
+            </div>
+          </div>
+          <span class="q-acceptance">${p.acceptance_rate}%</span>
+        </div>
+        <div class="q-tags">${tags}</div>
+        <div class="q-card-footer">
+          <div class="q-complexity">LeetCode</div>
+          <div class="q-actions">
+            <a class="q-btn" href="${escapeHTML(p.url)}" target="_blank" rel="noreferrer">Open ↗</a>
+            <button class="q-btn track-btn" ${trackDisabled}>${trackLabel}</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  // Wire up track buttons
+  dom.discoverGrid.querySelectorAll('.q-card').forEach((card) => {
+    const btn = card.querySelector('.track-btn');
+    if (!btn || btn.disabled) return;
+    btn.addEventListener('click', () => {
+      const slug = card.dataset.slug;
+      trackFromDiscover(slug, btn);
+    });
+  });
+}
+
+function renderDiscoverPager() {
+  if (discoverTotal <= DISCOVER_PAGE_SIZE) {
+    dom.discoverPager.style.display = 'none';
+    return;
+  }
+  dom.discoverPager.style.display = '';
+  const page = Math.floor(discoverSkip / DISCOVER_PAGE_SIZE) + 1;
+  const totalPages = Math.ceil(discoverTotal / DISCOVER_PAGE_SIZE);
+  dom.discoverPageInfo.textContent = `Page ${page} of ${totalPages}`;
+  dom.discoverPrev.disabled = discoverSkip === 0;
+  dom.discoverNext.disabled = discoverSkip + DISCOVER_PAGE_SIZE >= discoverTotal;
+}
+
+async function trackFromDiscover(slug, triggerBtn) {
+  setBusy(triggerBtn, true, '…');
+  try {
+    const res = await api('/questions/from-discover', {
+      method: 'POST',
+      body: { slug },
+    });
+    showToast(res ? 'Added to your list! 🎉' : 'Tracked.', 'success');
+    // Refresh personal list + the current discover view so the badge appears.
+    await refreshAll();
+    if (document.getElementById('page-discover')?.classList.contains('active')) {
+      await loadDiscover();
+    }
+    if (dailyChallenge && dailyChallenge.slug === slug) {
+      dailyChallenge.tracked = true;
+      renderDailyChallenge();
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+    setBusy(triggerBtn, false);
+  }
+}
+
+>>>>>>> 0d93707014d1f1c8b5aa7e64d863b5167664a338
 
 function getInitials(name, email) {
   const source = (name || email || '?').trim();
@@ -751,6 +933,11 @@ function navigate(pageId) {
     renderQuestions();
   } else if (pageId === 'profile') {
     renderProfile();
+  } else if (pageId === 'discover') {
+    // Only refetch if grid is empty or stale — user can hit Refresh for a manual reload.
+    if (!dom.discoverGrid.querySelector('.q-card')) {
+      loadDiscover();
+    }
   }
 }
 
@@ -844,6 +1031,43 @@ function attachListeners() {
     if (dom.profileBtn.contains(e.target) || dom.profileMenu.contains(e.target)) return;
     toggleProfileMenu(false);
   });
+
+  // Discover filters
+  if (dom.discoverSearch) {
+    dom.discoverSearch.addEventListener('input', () => {
+      clearTimeout(discoverSearchTimer);
+      discoverSearchTimer = setTimeout(() => {
+        discoverSkip = 0;
+        loadDiscover();
+      }, 350);
+    });
+  }
+  if (dom.discoverDifficulty) {
+    dom.discoverDifficulty.addEventListener('change', () => {
+      discoverSkip = 0;
+      loadDiscover();
+    });
+  }
+  if (dom.discoverRefresh) {
+    dom.discoverRefresh.addEventListener('click', () => {
+      discoverSkip = 0;
+      loadDiscover();
+    });
+  }
+  if (dom.discoverPrev) {
+    dom.discoverPrev.addEventListener('click', () => {
+      if (discoverSkip === 0) return;
+      discoverSkip = Math.max(0, discoverSkip - DISCOVER_PAGE_SIZE);
+      loadDiscover();
+    });
+  }
+  if (dom.discoverNext) {
+    dom.discoverNext.addEventListener('click', () => {
+      if (discoverSkip + DISCOVER_PAGE_SIZE >= discoverTotal) return;
+      discoverSkip += DISCOVER_PAGE_SIZE;
+      loadDiscover();
+    });
+  }
 }
 
 // Particles (unchanged) 
@@ -929,7 +1153,12 @@ async function init() {
   initializeParticles();
   playLoader();
   await Promise.all([loadCurrentUser(), refreshAll()]);
+<<<<<<< HEAD
   renderProfile(); 
+=======
+  renderProfile(); // ensure stats re-render once both user and analytics arrived
+  loadDailyChallenge(); // fire and forget — doesn't block UI
+>>>>>>> 0d93707014d1f1c8b5aa7e64d863b5167664a338
 }
 
 document.addEventListener('DOMContentLoaded', init);

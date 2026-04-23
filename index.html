@@ -43,6 +43,9 @@
       <a href="#" class="nav-item" data-page="questions">
         <span class="nav-icon">📋</span><span class="nav-label">Questions</span>
       </a>
+      <a href="#" class="nav-item" data-page="discover">
+        <span class="nav-icon">🌐</span><span class="nav-label">Discover</span>
+      </a>
       <a href="#" class="nav-item" data-page="add">
         <span class="nav-icon">➕</span><span class="nav-label">Add Question</span>
       </a>
@@ -96,6 +99,17 @@
       <div class="page-header">
         <h1 class="page-title glitch-text" data-text="Dashboard">Dashboard</h1>
         <p class="page-sub">Your interview prep at a glance</p>
+      </div>
+
+      <!-- DAILY CHALLENGE -->
+      <div class="daily-card" id="dailyCard">
+        <div class="daily-card-top">
+          <span class="daily-badge">⚡ LeetCode Daily</span>
+          <span class="daily-date" id="dailyDate">—</span>
+        </div>
+        <div class="daily-body" id="dailyBody">
+          <div class="empty-state" style="padding:1rem 0;">Loading today's challenge…</div>
+        </div>
       </div>
 
       <div class="stats-grid" id="statsGrid">
@@ -212,6 +226,40 @@
 
       <div class="questions-grid" id="questionsGrid">
         <div class="empty-state">Add questions to get started! 🚀</div>
+      </div>
+    </section>
+
+    <!-- PAGE: DISCOVER -->
+    <section class="page" id="page-discover">
+      <div class="page-header">
+        <h1 class="page-title glitch-text" data-text="Discover">Discover</h1>
+        <p class="page-sub">Live LeetCode problems, updated every few minutes</p>
+      </div>
+
+      <div class="filters-bar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="discoverSearch" class="search-input" placeholder="Search problems (e.g. Two Sum, Binary)..."/>
+        </div>
+        <div class="filter-chips">
+          <select id="discoverDifficulty" class="filter-select">
+            <option value="">All Difficulties</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button class="filter-select" id="discoverRefresh" style="cursor:pointer;">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="questions-grid" id="discoverGrid">
+        <div class="empty-state">Loading live problems…</div>
+      </div>
+
+      <div class="discover-pager" id="discoverPager" style="display:none;">
+        <button class="btn-reset" id="discoverPrev">← Prev</button>
+        <span class="discover-page-info" id="discoverPageInfo">Page 1</span>
+        <button class="btn-reset" id="discoverNext">Next →</button>
       </div>
     </section>
 
