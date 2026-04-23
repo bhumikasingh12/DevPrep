@@ -364,7 +364,7 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:8000';
+    const API_BASE = 'http://127.0.0.1:8000';
 
     // ── Custom cursor ──────────────────────────────────────────────────────────
     const cursor = document.getElementById('cursor');
@@ -491,17 +491,18 @@
           }),
         });
 
-        const data = await res.json();
+        const body = await res.json().catch(() => null);
 
-        if (!res.ok) {
-          showAlert('error', data.detail || 'Login failed. Check your credentials.');
+        if (!res.ok || !body || body.success === false) {
+          const msg = (body && body.message) || 'Login failed. Check your credentials.';
+          showAlert('error', msg);
         } else {
-          showAlert('success', 'Logged in! Redirecting...');
-          // Store token if returned
-          if (data.access_token) {
-            localStorage.setItem('devprep_token', data.access_token);
+          const token = body.data && body.data.access_token;
+          if (token) {
+            localStorage.setItem('devprep_token', token);
           }
-          setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+          showAlert('success', 'Logged in! Redirecting...');
+          setTimeout(() => { window.location.href = 'index.html'; }, 800);
         }
       } catch (err) {
         showAlert('error', 'Cannot reach server. Is it running?');

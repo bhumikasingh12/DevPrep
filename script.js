@@ -1,10 +1,20 @@
-/* DevPrep JavaScript App
-   Controls navigation, question storage, filters, modals,
-   analytics, toast notifications, cursor, loader, and particles.
+/* DevPrep frontend — backend-integrated build.
+   All CRUD + analytics go through the FastAPI backend.
+   Only the JWT lives in localStorage. Questions, streak, topic list come
+   from the server. Every user action calls the API and re-syncs state.
 */
 
-const STORAGE_KEY = 'devprep_questions_v1';
-const STREAK_KEY  = 'devprep_streak_v1';
+// ── Config ──────────────────────────────────────────────────────────────────
+const API_BASE = 'http://127.0.0.1:8000';
+const TOKEN_KEY = 'devprep_token';
+
+// ── Auth gate: redirect to login if no token ────────────────────────────────
+(function requireAuth() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    window.location.href = 'login.html';
+  }
+})();
 
 // ── DOM references ──────────────────────────────────────────────────────────
 const dom = {
@@ -54,97 +64,68 @@ const dom = {
   topicSuggestions: document.getElementById('topicSuggestions'),
   particleCanvas:   document.getElementById('particleCanvas'),
   streakNum:        document.getElementById('streakNum'),
+
+  // Profile (sidebar)
+  profileBtn:          document.getElementById('profileBtn'),
+  profileMenu:         document.getElementById('profileMenu'),
+  profileAvatar:       document.getElementById('profileAvatar'),
+  profileName:         document.getElementById('profileName'),
+  profileEmail:        document.getElementById('profileEmail'),
+  // Profile (page)
+  profileHeroAvatar:   document.getElementById('profileHeroAvatar'),
+  profileHeroName:     document.getElementById('profileHeroName'),
+  profileHeroEmail:    document.getElementById('profileHeroEmail'),
+  pfTotal:             document.getElementById('pfTotal'),
+  pfSolved:            document.getElementById('pfSolved'),
+  pfCompletion:        document.getElementById('pfCompletion'),
+  pfStreak:            document.getElementById('pfStreak'),
+  profileSignoutBtn:   document.getElementById('profileSignoutBtn'),
 };
 
-// ── App state ────────────────────────────────────────────────────────────────
-let questions      = [];
-let currentEditId  = null;
-let particles      = [];
-let canvasContext   = null;
-let canvasSize     = { width: 0, height: 0 };
+// ── App state (in-memory mirror of server data; no persistence) ─────────────
+let questions     = [];
+let analyticsData = null;   // last fetched /analytics response
+let currentUser   = null;   // { id, name, email } from /auth/me
+let currentEditId = null;
+let particles     = [];
+let canvasContext = null;
+let canvasSize    = { width: 0, height: 0 };
 
-// ── Persistence ──────────────────────────────────────────────────────────────
-function loadQuestions() {
+// ── API helper ──────────────────────────────────────────────────────────────
+async function api(path, { method = 'GET', body = null } = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let res;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Unable to load questions', error);
-    return [];
-  }
-}
-
-function saveQuestions() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-}
-
-// ── Streak helpers ────────────────────────────────────────────────────────────
-/**
- * Loads streak data from localStorage.
- * Returns { count, lastDate } where lastDate is a YYYY-MM-DD string or null.
- */
-function loadStreak() {
-  try {
-    const raw = localStorage.getItem(STREAK_KEY);
-    return raw ? JSON.parse(raw) : { count: 0, lastDate: null };
-  } catch {
-    return { count: 0, lastDate: null };
-  }
-}
-
-function saveStreak(data) {
-  localStorage.setItem(STREAK_KEY, JSON.stringify(data));
-}
-
-/** Returns today's date as a YYYY-MM-DD string (local time). */
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/**
- * Recalculates the streak from scratch by looking at which calendar days
- * have at least one solved question. This is the most robust approach —
- * it survives page refreshes, time zone quirks, and manual edits.
- */
-function recalcStreak() {
-  // Collect all unique days that have a solved question
-  const solvedDays = new Set(
-    questions
-      .filter((q) => q.solved_at)
-      .map((q) => q.solved_at.slice(0, 10)) // "YYYY-MM-DD"
-  );
-
-  if (solvedDays.size === 0) return 0;
-
-  // Walk backwards from today counting consecutive days
-  let streak = 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let i = 0; i < 365; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (solvedDays.has(key)) {
-      streak += 1;
-    } else {
-      // Allow a one-day gap only for the very first check (today might not have
-      // a solve yet, but yesterday onwards must be unbroken).
-      if (i === 0) continue;
-      break;
-    }
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkErr) {
+    throw new Error('Cannot reach server. Is the backend running?');
   }
 
-  return streak;
+  // Unauthorized → wipe token and bounce to login
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = 'login.html';
+    throw new Error('Session expired.');
+  }
+
+  let json = null;
+  try { json = await res.json(); } catch { /* non-JSON */ }
+
+  if (!res.ok || (json && json.success === false)) {
+    const msg = (json && json.message) || `Request failed (${res.status}).`;
+    throw new Error(msg);
+  }
+  return json ? json.data : null;
 }
 
-function updateStreakDisplay() {
-  const streak = recalcStreak();
-  if (dom.streakNum) dom.streakNum.textContent = streak;
-}
-
-// ── Utilities ────────────────────────────────────────────────────────────────
+// ── Utilities ───────────────────────────────────────────────────────────────
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleDateString(undefined, {
@@ -154,27 +135,40 @@ function formatDate(value) {
 
 function escapeHTML(value) {
   return value
-    ? value
+    ? String(value)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
     : '';
 }
 
-/** Returns the `data-[key]` value of the active button in a group, or null. */
 function getSelectedData(buttons, key) {
   const active = buttons.find((btn) => btn.classList.contains('active'));
   return active ? active.dataset[key] : null;
 }
 
-/** Sets exactly one button active based on its `data-[key]` value. */
 function setActiveButton(buttons, key, value) {
   buttons.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset[key] === value);
   });
 }
 
-// ── Form helpers ─────────────────────────────────────────────────────────────
+function setBusy(buttonEl, busy, busyText) {
+  if (!buttonEl) return;
+  if (busy) {
+    buttonEl.dataset.prevText = buttonEl.dataset.prevText || buttonEl.innerHTML;
+    buttonEl.disabled = true;
+    buttonEl.innerHTML = busyText || buttonEl.dataset.prevText;
+  } else {
+    buttonEl.disabled = false;
+    if (buttonEl.dataset.prevText) {
+      buttonEl.innerHTML = buttonEl.dataset.prevText;
+      delete buttonEl.dataset.prevText;
+    }
+  }
+}
+
+// ── Form helpers ────────────────────────────────────────────────────────────
 function resetFormFields() {
   currentEditId = null;
   dom.qTitle.value  = '';
@@ -192,21 +186,20 @@ function resetFormFields() {
 function fillForm(questionId) {
   const question = questions.find((q) => q.id === questionId);
   if (!question) return;
-
-  currentEditId         = questionId;
-  dom.qTitle.value      = question.title;
-  dom.qTopic.value      = question.topic;
-  dom.qUrl.value        = question.leetcode_url      || '';
-  dom.qTime.value       = question.time_complexity   || '';
-  dom.qSpace.value      = question.space_complexity  || '';
-  dom.qTags.value       = question.tags.join(', ');
-  dom.qNotes.value      = question.notes             || '';
+  currentEditId        = questionId;
+  dom.qTitle.value     = question.title;
+  dom.qTopic.value     = question.topic;
+  dom.qUrl.value       = question.leetcode_url     || '';
+  dom.qTime.value      = question.time_complexity  || '';
+  dom.qSpace.value     = question.space_complexity || '';
+  dom.qTags.value      = (question.tags || []).join(', ');
+  dom.qNotes.value     = question.notes            || '';
   setActiveButton(dom.diffButtons,   'diff',   question.difficulty);
   setActiveButton(dom.statusButtons, 'status', question.status);
   dom.submitQuestion.querySelector('.btn-text').textContent = 'Save Changes';
 }
 
-// ── Topic filter dropdown ─────────────────────────────────────────────────────
+// ── Topic dropdown ──────────────────────────────────────────────────────────
 function buildTopicOptions() {
   const topics = Array.from(
     new Set(questions.map((q) => q.topic).filter(Boolean))
@@ -217,7 +210,7 @@ function buildTopicOptions() {
   ].join('');
 }
 
-// ── Filtering ────────────────────────────────────────────────────────────────
+// ── Filtering ───────────────────────────────────────────────────────────────
 function getFilteredQuestions() {
   const searchTerm = dom.searchInput.value.trim().toLowerCase();
   const topic      = dom.filterTopic.value;
@@ -225,8 +218,9 @@ function getFilteredQuestions() {
   const status     = dom.filterStatus.value;
 
   return questions.filter((q) => {
-    const matchesSearch = !searchTerm || [q.title, q.topic, q.tags.join(' ')].some(
-      (field) => field.toLowerCase().includes(searchTerm)
+    const tagsStr = (q.tags || []).join(' ');
+    const matchesSearch = !searchTerm || [q.title, q.topic, tagsStr].some(
+      (field) => (field || '').toLowerCase().includes(searchTerm)
     );
     const matchesTopic      = !topic      || q.topic      === topic;
     const matchesDifficulty = !difficulty || q.difficulty === difficulty;
@@ -235,23 +229,21 @@ function getFilteredQuestions() {
   });
 }
 
-// ── Renderers ─────────────────────────────────────────────────────────────────
+// ── Renderers — dashboard/analytics use backend analytics when available ────
 function renderDashboard() {
-  const total    = questions.length;
-  const solved   = questions.filter((q) => q.status === 'solved').length;
-  const unsolved = questions.filter((q) => q.status === 'unsolved').length;
-  const revisit  = questions.filter((q) => q.status === 'revisit').length;
+  // Prefer backend numbers; fall back to local counts if analytics not loaded yet.
+  const total    = analyticsData?.total    ?? questions.length;
+  const solved   = analyticsData?.solved   ?? questions.filter((q) => q.status === 'solved').length;
+  const unsolved = analyticsData?.unsolved ?? questions.filter((q) => q.status === 'unsolved').length;
+  const revisit  = analyticsData?.revisit  ?? questions.filter((q) => q.status === 'revisit').length;
 
-  const byDiff = {
-    easy:   questions.filter((q) => q.difficulty === 'easy'),
-    medium: questions.filter((q) => q.difficulty === 'medium'),
-    hard:   questions.filter((q) => q.difficulty === 'hard'),
-  };
-
-  const solvedByDiff = {
-    easy:   byDiff.easy.filter((q)   => q.status === 'solved').length,
-    medium: byDiff.medium.filter((q) => q.status === 'solved').length,
-    hard:   byDiff.hard.filter((q)   => q.status === 'solved').length,
+  const diff = analyticsData?.difficulty_breakdown || {
+    easy:   { total: questions.filter((q) => q.difficulty === 'easy').length,
+              solved: questions.filter((q) => q.difficulty === 'easy' && q.status === 'solved').length },
+    medium: { total: questions.filter((q) => q.difficulty === 'medium').length,
+              solved: questions.filter((q) => q.difficulty === 'medium' && q.status === 'solved').length },
+    hard:   { total: questions.filter((q) => q.difficulty === 'hard').length,
+              solved: questions.filter((q) => q.difficulty === 'hard' && q.status === 'solved').length },
   };
 
   const progress      = total ? Math.round((solved / total) * 100) : 0;
@@ -265,19 +257,22 @@ function renderDashboard() {
   dom.ringProgress.style.strokeDasharray  = circumference;
   dom.ringProgress.style.strokeDashoffset = circumference - (progress / 100) * circumference;
 
-  dom.easyBar.style.width   = byDiff.easy.length   ? `${Math.round((solvedByDiff.easy   / byDiff.easy.length)   * 100)}%` : '0%';
-  dom.mediumBar.style.width = byDiff.medium.length ? `${Math.round((solvedByDiff.medium / byDiff.medium.length) * 100)}%` : '0%';
-  dom.hardBar.style.width   = byDiff.hard.length   ? `${Math.round((solvedByDiff.hard   / byDiff.hard.length)   * 100)}%` : '0%';
+  const pctOf = (row) => row.total ? `${Math.round((row.solved / row.total) * 100)}%` : '0%';
+  dom.easyBar.style.width   = pctOf(diff.easy);
+  dom.mediumBar.style.width = pctOf(diff.medium);
+  dom.hardBar.style.width   = pctOf(diff.hard);
 
-  dom.easyCount.textContent   = `${solvedByDiff.easy}/${byDiff.easy.length}`;
-  dom.mediumCount.textContent = `${solvedByDiff.medium}/${byDiff.medium.length}`;
-  dom.hardCount.textContent   = `${solvedByDiff.hard}/${byDiff.hard.length}`;
+  dom.easyCount.textContent   = `${diff.easy.solved}/${diff.easy.total}`;
+  dom.mediumCount.textContent = `${diff.medium.solved}/${diff.medium.total}`;
+  dom.hardCount.textContent   = `${diff.hard.solved}/${diff.hard.total}`;
 
-  updateStreakDisplay();
+  if (dom.streakNum && analyticsData) {
+    dom.streakNum.textContent = analyticsData.streak ?? 0;
+  }
 }
 
 function renderRecentSolved() {
-  const recent = questions
+  const recent = analyticsData?.recent_solved || questions
     .filter((q) => q.solved_at)
     .sort((a, b) => new Date(b.solved_at) - new Date(a.solved_at))
     .slice(0, 5);
@@ -311,7 +306,7 @@ function renderQuestions() {
                       : q.status === 'revisit' ? 'status-revisit'
                       : 'status-unsolved';
     const notes = q.notes ? escapeHTML(q.notes).slice(0, 140) : 'No notes added yet.';
-    const tags  = q.tags.map((tag) => `<span class="q-tag">${escapeHTML(tag)}</span>`).join('');
+    const tags  = (q.tags || []).map((tag) => `<span class="q-tag">${escapeHTML(tag)}</span>`).join('');
 
     return `
       <article class="q-card ${escapeHTML(q.difficulty)}" data-id="${q.id}">
@@ -339,30 +334,32 @@ function renderQuestions() {
     `;
   }).join('');
 
-  // Attach card-level listeners after rendering
   dom.questionsGrid.querySelectorAll('.q-card').forEach((card) => {
     const id = card.dataset.id;
     card.querySelector('.view-btn').addEventListener('click',   () => openModal(id));
-    card.querySelector('.solve-btn').addEventListener('click',  () => toggleSolved(id));
-    card.querySelector('.delete-btn').addEventListener('click', () => deleteQuestion(id));
+    card.querySelector('.solve-btn').addEventListener('click',  (e) => toggleSolved(id, e.currentTarget));
+    card.querySelector('.delete-btn').addEventListener('click', (e) => deleteQuestion(id, e.currentTarget));
   });
 }
 
 function renderAnalytics() {
-  const total    = questions.length;
-  const solved   = questions.filter((q) => q.status === 'solved').length;
-  const unsolved = questions.filter((q) => q.status === 'unsolved').length;
-  const revisit  = questions.filter((q) => q.status === 'revisit').length;
+  const total    = analyticsData?.total    ?? questions.length;
+  const solved   = analyticsData?.solved   ?? questions.filter((q) => q.status === 'solved').length;
+  const unsolved = analyticsData?.unsolved ?? questions.filter((q) => q.status === 'unsolved').length;
+  const revisit  = analyticsData?.revisit  ?? questions.filter((q) => q.status === 'revisit').length;
+  const streak   = analyticsData?.streak   ?? 0;
 
-  // Build per-topic stats
-  const topicStats = {};
-  questions.forEach((q) => {
-    if (!topicStats[q.topic]) topicStats[q.topic] = { total: 0, solved: 0 };
-    topicStats[q.topic].total  += 1;
-    if (q.status === 'solved') topicStats[q.topic].solved += 1;
-  });
+  const topicsObj = analyticsData?.topics || (() => {
+    const out = {};
+    questions.forEach((q) => {
+      if (!out[q.topic]) out[q.topic] = { total: 0, solved: 0 };
+      out[q.topic].total += 1;
+      if (q.status === 'solved') out[q.topic].solved += 1;
+    });
+    return out;
+  })();
 
-  const rows = Object.entries(topicStats)
+  const rows = Object.entries(topicsObj)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 8)
     .map(([topic, stats]) => {
@@ -390,7 +387,7 @@ function renderAnalytics() {
         <div><strong>Unsolved:</strong> ${unsolved}</div>
         <div><strong>Revisit:</strong> ${revisit}</div>
         <div><strong>Completion:</strong> ${total ? Math.round((solved / total) * 100) : 0}%</div>
-        <div><strong>Current Streak:</strong> 🔥 ${recalcStreak()} days</div>
+        <div><strong>Current Streak:</strong> 🔥 ${streak} days</div>
       </div>
     </div>
     <div class="analytics-card">
@@ -401,22 +398,26 @@ function renderAnalytics() {
 }
 
 function renderWeakTopics() {
-  const stats = {};
-  questions.forEach((q) => {
-    if (!stats[q.topic]) stats[q.topic] = { total: 0, solved: 0, easy: 0, medium: 0, hard: 0 };
-    stats[q.topic].total  += 1;
-    stats[q.topic].solved += q.status === 'solved' ? 1 : 0;
-    stats[q.topic][q.difficulty] += 1;
-  });
-
-  const weak = Object.entries(stats)
-    .map(([topic, data]) => ({
-      topic,
-      solvedPct: data.total ? Math.round((data.solved / data.total) * 100) : 0,
-      data,
-    }))
-    .filter((item) => item.solvedPct < 50)
-    .sort((a, b) => a.solvedPct - b.solvedPct);
+  const weak = analyticsData?.weak_topics?.map((w) => ({
+    topic: w.topic,
+    solvedPct: w.solved_pct,
+    data: { total: w.total, solved: w.solved, easy: w.easy, medium: w.medium, hard: w.hard },
+  })) || (() => {
+    const stats = {};
+    questions.forEach((q) => {
+      if (!stats[q.topic]) stats[q.topic] = { total: 0, solved: 0, easy: 0, medium: 0, hard: 0 };
+      stats[q.topic].total  += 1;
+      stats[q.topic].solved += q.status === 'solved' ? 1 : 0;
+      stats[q.topic][q.difficulty] += 1;
+    });
+    return Object.entries(stats)
+      .map(([topic, data]) => ({
+        topic,
+        solvedPct: data.total ? Math.round((data.solved / data.total) * 100) : 0,
+        data,
+      }))
+      .filter((item) => item.solvedPct < 50);
+  })();
 
   if (!weak.length) {
     dom.weakGrid.innerHTML = '<div class="empty-state">No weak topics found! You\'re killing it 💪</div>';
@@ -425,7 +426,7 @@ function renderWeakTopics() {
 
   dom.weakGrid.innerHTML = weak.map((item) => `
     <article class="weak-card">
-      <div class="weak-topic-name">${escapeHTML(item.topic)}</div>
+      <div class="weak-topic">${escapeHTML(item.topic)}</div>
       <div class="weak-pct">${item.solvedPct}<span>%</span></div>
       <div class="weak-bar-track">
         <div class="weak-bar-fill" style="width:${item.solvedPct}%"></div>
@@ -450,7 +451,7 @@ function rerenderAll() {
   renderWeakTopics();
 }
 
-// ── Topic autocomplete ────────────────────────────────────────────────────────
+// ── Topic autocomplete ──────────────────────────────────────────────────────
 function updateTopicSuggestions() {
   const value  = dom.qTopic.value.trim().toLowerCase();
   const topics = Array.from(new Set(questions.map((q) => q.topic))).filter(Boolean);
@@ -477,7 +478,7 @@ function updateTopicSuggestions() {
   });
 }
 
-// ── Toast notifications ───────────────────────────────────────────────────────
+// ── Toast ───────────────────────────────────────────────────────────────────
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className    = `toast ${type}`;
@@ -489,7 +490,7 @@ function showToast(message, type = 'success') {
   }, 2200);
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
+// ── Modal ───────────────────────────────────────────────────────────────────
 function openModal(questionId) {
   const q = questions.find((item) => item.id === questionId);
   if (!q) return;
@@ -543,12 +544,12 @@ function openModal(questionId) {
 
   dom.modalOverlay.classList.add('open');
 
-  dom.modalContent.querySelector('.modal-btn-solve').addEventListener('click', () => {
-    toggleSolved(q.id);
+  dom.modalContent.querySelector('.modal-btn-solve').addEventListener('click', async (e) => {
+    await toggleSolved(q.id, e.currentTarget);
     closeModal();
   });
-  dom.modalContent.querySelector('.modal-btn-revisit').addEventListener('click', () => {
-    updateQuestionStatus(q.id, 'revisit');
+  dom.modalContent.querySelector('.modal-btn-revisit').addEventListener('click', async (e) => {
+    await updateQuestionStatus(q.id, 'revisit', e.currentTarget);
     closeModal();
   });
   dom.modalContent.querySelector('#modalEditBtn').addEventListener('click', () => {
@@ -556,8 +557,8 @@ function openModal(questionId) {
     closeModal();
     navigate('add');
   });
-  dom.modalContent.querySelector('.modal-btn-delete').addEventListener('click', () => {
-    deleteQuestion(q.id);
+  dom.modalContent.querySelector('.modal-btn-delete').addEventListener('click', async (e) => {
+    await deleteQuestion(q.id, e.currentTarget);
     closeModal();
   });
 }
@@ -566,105 +567,172 @@ function closeModal() {
   dom.modalOverlay.classList.remove('open');
 }
 
-// ── Question actions ──────────────────────────────────────────────────────────
-function toggleSolved(questionId) {
+// ── Profile ─────────────────────────────────────────────────────────────────
+function getInitials(name, email) {
+  const source = (name || email || '?').trim();
+  if (!source) return '?';
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return source.slice(0, 2).toUpperCase();
+}
+
+function renderProfile() {
+  if (!currentUser) return;
+  const initials = getInitials(currentUser.name, currentUser.email);
+
+  // Sidebar
+  if (dom.profileAvatar) dom.profileAvatar.textContent = initials;
+  if (dom.profileName)   dom.profileName.textContent   = currentUser.name || '—';
+  if (dom.profileEmail)  dom.profileEmail.textContent  = currentUser.email || '—';
+
+  // Profile page hero
+  if (dom.profileHeroAvatar) dom.profileHeroAvatar.textContent = initials;
+  if (dom.profileHeroName)   dom.profileHeroName.textContent   = currentUser.name || '—';
+  if (dom.profileHeroEmail)  dom.profileHeroEmail.textContent  = currentUser.email || '—';
+
+  renderProfileStats();
+}
+
+function renderProfileStats() {
+  const total    = analyticsData?.total    ?? questions.length;
+  const solved   = analyticsData?.solved   ?? questions.filter((q) => q.status === 'solved').length;
+  const streak   = analyticsData?.streak   ?? 0;
+  const pct      = total ? Math.round((solved / total) * 100) : 0;
+
+  if (dom.pfTotal)      dom.pfTotal.textContent      = total;
+  if (dom.pfSolved)     dom.pfSolved.textContent     = solved;
+  if (dom.pfCompletion) dom.pfCompletion.textContent = `${pct}%`;
+  if (dom.pfStreak)     dom.pfStreak.textContent     = `🔥 ${streak}`;
+}
+
+async function loadCurrentUser() {
+  try {
+    currentUser = await api('/auth/me');
+    renderProfile();
+  } catch (err) {
+    // /auth/me failure with a valid token shouldn't happen; 401 already redirects.
+    console.warn('Failed to load user profile:', err.message);
+  }
+}
+
+function toggleProfileMenu(force) {
+  const open = typeof force === 'boolean'
+    ? force
+    : !dom.profileMenu.classList.contains('open');
+  dom.profileMenu.classList.toggle('open', open);
+  dom.profileBtn.classList.toggle('open', open);
+}
+
+function signOut() {
+  localStorage.removeItem(TOKEN_KEY);
+  showToast('Signed out. See you soon! 👋', 'success');
+  setTimeout(() => { window.location.href = 'login.html'; }, 400);
+}
+
+
+async function loadQuestions() {
+  try {
+    const data = await api('/questions');
+    questions = data?.questions || [];
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function loadAnalytics() {
+  try {
+    analyticsData = await api('/analytics');
+  } catch (err) {
+    // silent on analytics failure — renderers fall back to local aggregation
+    analyticsData = null;
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([loadQuestions(), loadAnalytics()]);
+  buildTopicOptions();
+  rerenderAll();
+  renderProfileStats();
+}
+
+// ── Question actions (all via API) ──────────────────────────────────────────
+async function toggleSolved(questionId, triggerBtn) {
   const q = questions.find((item) => item.id === questionId);
   if (!q) return;
   const nextStatus = q.status === 'solved' ? 'unsolved' : 'solved';
-  updateQuestionStatus(questionId, nextStatus);
+  await updateQuestionStatus(questionId, nextStatus, triggerBtn);
 }
 
-function updateQuestionStatus(questionId, status) {
-  const q = questions.find((item) => item.id === questionId);
-  if (!q) return;
-  q.status    = status;
-  q.solved_at = status === 'solved' ? q.solved_at || new Date().toISOString() : null;
-  saveQuestions();
-  rerenderAll();
-  showToast(`Question marked as ${status}.`, 'success');
+async function updateQuestionStatus(questionId, status, triggerBtn) {
+  setBusy(triggerBtn, true, '…');
+  try {
+    await api(`/questions/${questionId}`, { method: 'PUT', body: { status } });
+    await refreshAll();
+    showToast(`Question marked as ${status}.`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    setBusy(triggerBtn, false);
+  }
 }
 
-function deleteQuestion(questionId) {
-  questions = questions.filter((q) => q.id !== questionId);
-  saveQuestions();
-  rerenderAll();
-  buildTopicOptions();
-  showToast('Question deleted.', 'error');
+async function deleteQuestion(questionId, triggerBtn) {
+  setBusy(triggerBtn, true, '…');
+  try {
+    await api(`/questions/${questionId}`, { method: 'DELETE' });
+    await refreshAll();
+    showToast('Question deleted.', 'error');
+  } catch (err) {
+    showToast(err.message, 'error');
+    setBusy(triggerBtn, false);
+  }
+  // on success the button's DOM is gone after refreshAll(); no need to un-busy.
 }
 
-// ── Form submission ───────────────────────────────────────────────────────────
-function submitQuestion(event) {
+// ── Form submission ─────────────────────────────────────────────────────────
+async function submitQuestion(event) {
   event.preventDefault();
 
-  const title           = dom.qTitle.value.trim();
-  const topic           = dom.qTopic.value.trim();
-  const difficulty      = getSelectedData(dom.diffButtons,   'diff')   || 'easy';
-  const status          = getSelectedData(dom.statusButtons, 'status') || 'unsolved';
-  const leetcode_url    = dom.qUrl.value.trim();
-  const time_complexity = dom.qTime.value.trim();
-  const space_complexity= dom.qSpace.value.trim();
-  const notes           = dom.qNotes.value.trim();
-  const tags            = dom.qTags.value.split(',').map((t) => t.trim()).filter(Boolean);
+  const title            = dom.qTitle.value.trim();
+  const topic            = dom.qTopic.value.trim();
+  const difficulty       = getSelectedData(dom.diffButtons,   'diff')   || 'easy';
+  const status           = getSelectedData(dom.statusButtons, 'status') || 'unsolved';
+  const leetcode_url     = dom.qUrl.value.trim()  || null;
+  const time_complexity  = dom.qTime.value.trim() || null;
+  const space_complexity = dom.qSpace.value.trim()|| null;
+  const notes            = dom.qNotes.value.trim();
+  const tags             = dom.qTags.value.split(',').map((t) => t.trim()).filter(Boolean);
 
   if (!title || !topic) {
     showToast('Title and topic are required.', 'error');
     return;
   }
 
-  if (currentEditId) {
-    // ── Edit existing question ──────────────────────────────────────────────
-    const existing = questions.find((q) => q.id === currentEditId);
-    if (!existing) return;
-    existing.title           = title;
-    existing.topic           = topic;
-    existing.difficulty      = difficulty;
-    existing.status          = status;
-    existing.leetcode_url    = leetcode_url;
-    existing.time_complexity = time_complexity;
-    existing.space_complexity= space_complexity;
-    existing.notes           = notes;
-    existing.tags            = tags;
-    // Preserve original solved_at if already set; clear it if un-solved
-    existing.solved_at = status === 'solved'
-      ? existing.solved_at || new Date().toISOString()
-      : null;
+  const payload = {
+    title, topic, difficulty, status, notes, tags,
+    leetcode_url, time_complexity, space_complexity,
+  };
 
-    saveQuestions();
-    showToast('Question updated.', 'success');
-  } else {
-    // ── Add new question ────────────────────────────────────────────────────
-    const newQuestion = {
-      id:             `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title,
-      topic,
-      difficulty,
-      status,
-      notes,
-      tags,
-      leetcode_url,
-      time_complexity,
-      space_complexity,
-      created_at: new Date().toISOString(),
-      solved_at:  status === 'solved' ? new Date().toISOString() : null,
-      attempts:   0,
-    };
-    questions.unshift(newQuestion);
-    saveQuestions();
-    showToast('Question added successfully! 🎉', 'success');
+  setBusy(dom.submitQuestion, true, '<span class="btn-text">Saving…</span>');
+  try {
+    if (currentEditId) {
+      await api(`/questions/${currentEditId}`, { method: 'PUT', body: payload });
+      showToast('Question updated.', 'success');
+    } else {
+      await api('/questions', { method: 'POST', body: payload });
+      showToast('Question added successfully! 🎉', 'success');
+    }
+    resetFormFields();
+    await refreshAll();
+    navigate('questions');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    setBusy(dom.submitQuestion, false);
   }
-
-  resetFormFields();
-  rerenderAll();
-  buildTopicOptions();
-  navigate('questions');
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
-/**
- * FIX: HTML page element IDs are "page-dashboard", "page-questions", etc.
- * The nav items use data-page="dashboard", "questions", etc.
- * So we must compare page.id === `page-${pageId}`.
- */
+// ── Navigation ──────────────────────────────────────────────────────────────
 function navigate(pageId) {
   dom.pages.forEach((page) => {
     page.classList.toggle('active', page.id === `page-${pageId}`);
@@ -673,22 +741,26 @@ function navigate(pageId) {
     item.classList.toggle('active', item.dataset.page === pageId);
   });
 
-  // Close mobile sidebar when navigating
   if (dom.sidebar.classList.contains('open')) {
     dom.sidebar.classList.remove('open');
     dom.hamburger.classList.remove('open');
   }
 
-  // Render the appropriate page
-  if (pageId === 'dashboard') { renderDashboard(); renderRecentSolved(); }
-  if (pageId === 'questions') renderQuestions();
-  if (pageId === 'analytics') renderAnalytics();
-  if (pageId === 'weak')      renderWeakTopics();
+  // Close the profile menu whenever we change pages.
+  toggleProfileMenu(false);
+
+  // Re-fetch analytics on pages that show derived metrics so they always match server.
+  if (pageId === 'dashboard' || pageId === 'analytics' || pageId === 'weak') {
+    loadAnalytics().then(() => { rerenderAll(); renderProfileStats(); });
+  } else if (pageId === 'questions') {
+    renderQuestions();
+  } else if (pageId === 'profile') {
+    renderProfile();
+  }
 }
 
-// ── Event listeners ───────────────────────────────────────────────────────────
+// ── Event listeners ─────────────────────────────────────────────────────────
 function attachListeners() {
-  // Sidebar navigation
   dom.navItems.forEach((item) => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
@@ -696,47 +768,40 @@ function attachListeners() {
     });
   });
 
-  // Hamburger (mobile)
   dom.hamburger.addEventListener('click', () => {
     const open = dom.sidebar.classList.toggle('open');
     dom.hamburger.classList.toggle('open', open);
   });
 
-  // Difficulty toggle buttons — FIX: these had no click listeners
   dom.diffButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       setActiveButton(dom.diffButtons, 'diff', btn.dataset.diff);
     });
   });
 
-  // Status toggle buttons — FIX: these had no click listeners
   dom.statusButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       setActiveButton(dom.statusButtons, 'status', btn.dataset.status);
     });
   });
 
-  // Form
   dom.resetForm.addEventListener('click', (e) => {
     e.preventDefault();
     resetFormFields();
   });
   dom.submitQuestion.addEventListener('click', submitQuestion);
 
-  // Filters
-  dom.searchInput.addEventListener('input',  renderQuestions);
-  dom.filterTopic.addEventListener('change', renderQuestions);
-  dom.filterDifficulty.addEventListener('change', renderQuestions);
-  dom.filterStatus.addEventListener('change',     renderQuestions);
+  dom.searchInput.addEventListener('input',        renderQuestions);
+  dom.filterTopic.addEventListener('change',       renderQuestions);
+  dom.filterDifficulty.addEventListener('change',  renderQuestions);
+  dom.filterStatus.addEventListener('change',      renderQuestions);
 
-  // Topic autocomplete
   dom.qTopic.addEventListener('input', updateTopicSuggestions);
   dom.qTopic.addEventListener('focus', updateTopicSuggestions);
   dom.qTopic.addEventListener('blur',  () =>
     setTimeout(() => dom.topicSuggestions.classList.remove('visible'), 180)
   );
 
-  // Modal
   dom.modalClose.addEventListener('click', closeModal);
   dom.modalOverlay.addEventListener('click', (e) => {
     if (e.target === dom.modalOverlay) closeModal();
@@ -745,16 +810,49 @@ function attachListeners() {
     if (e.key === 'Escape' && dom.modalOverlay.classList.contains('open')) closeModal();
   });
 
-  // Custom cursor
   document.addEventListener('mousemove', (e) => {
     dom.cursor.style.left         = `${e.clientX}px`;
     dom.cursor.style.top          = `${e.clientY}px`;
     dom.cursorFollower.style.left = `${e.clientX}px`;
     dom.cursorFollower.style.top  = `${e.clientY}px`;
   });
+
+  // Profile button toggles the dropdown menu
+  if (dom.profileBtn) {
+    dom.profileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleProfileMenu();
+    });
+  }
+
+  // Profile dropdown actions
+  if (dom.profileMenu) {
+    dom.profileMenu.querySelectorAll('.profile-menu-item').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        const action = item.dataset.action;
+        toggleProfileMenu(false);
+        if (action === 'profile')  navigate('profile');
+        if (action === 'signout')  signOut();
+      });
+    });
+  }
+
+  // Sign out button on the profile page
+  if (dom.profileSignoutBtn) {
+    dom.profileSignoutBtn.addEventListener('click', signOut);
+  }
+
+  // Click outside profile menu closes it
+  document.addEventListener('click', (e) => {
+    if (!dom.profileMenu || !dom.profileBtn) return;
+    if (!dom.profileMenu.classList.contains('open')) return;
+    if (dom.profileBtn.contains(e.target) || dom.profileMenu.contains(e.target)) return;
+    toggleProfileMenu(false);
+  });
 }
 
-// ── Particles ─────────────────────────────────────────────────────────────────
+// ── Particles (unchanged) ───────────────────────────────────────────────────
 function initializeParticles() {
   const canvas = dom.particleCanvas;
   if (!canvas) return;
@@ -766,11 +864,11 @@ function initializeParticles() {
 }
 
 function resizeCanvas() {
-  const canvas       = dom.particleCanvas;
-  canvas.width       = window.innerWidth;
-  canvas.height      = window.innerHeight;
-  canvasSize.width   = canvas.width;
-  canvasSize.height  = canvas.height;
+  const canvas      = dom.particleCanvas;
+  canvas.width      = window.innerWidth;
+  canvas.height     = window.innerHeight;
+  canvasSize.width  = canvas.width;
+  canvasSize.height = canvas.height;
 }
 
 function createParticle() {
@@ -798,7 +896,6 @@ function updateParticles() {
     canvasContext.fill();
   });
 
-  // Draw connecting lines between nearby particles
   const maxDist = 120;
   for (let i = 0; i < particles.length; i++) {
     for (let j = i + 1; j < particles.length; j++) {
@@ -815,11 +912,10 @@ function updateParticles() {
       }
     }
   }
-
   requestAnimationFrame(updateParticles);
 }
 
-// ── Loader animation ──────────────────────────────────────────────────────────
+// ── Loader animation (unchanged) ────────────────────────────────────────────
 function playLoader() {
   let progress = 0;
   const interval = setInterval(() => {
@@ -832,15 +928,14 @@ function playLoader() {
   }, 80);
 }
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
-function init() {
-  questions = loadQuestions();
+// ── Bootstrap ───────────────────────────────────────────────────────────────
+async function init() {
   attachListeners();
   resetFormFields();
-  buildTopicOptions();
-  rerenderAll();
   initializeParticles();
   playLoader();
+  await Promise.all([loadCurrentUser(), refreshAll()]);
+  renderProfile(); // ensure stats re-render once both user and analytics arrived
 }
 
 document.addEventListener('DOMContentLoaded', init);

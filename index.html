@@ -59,6 +59,27 @@
         <span class="streak-num" id="streakNum">0</span>
         <span class="streak-label">day streak</span>
       </div>
+
+      <!-- PROFILE -->
+      <button class="profile-card" id="profileBtn" aria-label="Open profile menu">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div class="profile-meta">
+          <div class="profile-name" id="profileName">Loading...</div>
+          <div class="profile-email" id="profileEmail">—</div>
+        </div>
+        <span class="profile-chevron">▾</span>
+      </button>
+
+      <div class="profile-menu" id="profileMenu">
+        <a href="#" class="profile-menu-item" data-action="profile">
+          <span class="pm-icon">👤</span>
+          <span>My Profile</span>
+        </a>
+        <a href="#" class="profile-menu-item danger" data-action="signout">
+          <span class="pm-icon">⎋</span>
+          <span>Sign Out</span>
+        </a>
+      </div>
     </div>
   </aside>
 
@@ -271,14 +292,47 @@
       </div>
     </section>
 
-    <!-- PAGE: WEAK TOPICS -->
-    <section class="page" id="page-weak">
+    <!-- PAGE: PROFILE -->
+    <section class="page" id="page-profile">
       <div class="page-header">
-        <h1 class="page-title glitch-text" data-text="Weak Topics">Weak Topics</h1>
-        <p class="page-sub">Focus here to level up 🔥</p>
+        <h1 class="page-title glitch-text" data-text="Profile">Profile</h1>
+        <p class="page-sub">Your account at a glance</p>
       </div>
-      <div class="weak-grid" id="weakGrid">
-        <div class="empty-state">No weak topics found! You're killing it 💪</div>
+
+      <div class="profile-page">
+        <div class="profile-hero">
+          <div class="profile-hero-avatar" id="profileHeroAvatar">?</div>
+          <div class="profile-hero-meta">
+            <div class="profile-hero-name" id="profileHeroName">—</div>
+            <div class="profile-hero-email" id="profileHeroEmail">—</div>
+            <div class="profile-hero-badge">DevPrep Member</div>
+          </div>
+        </div>
+
+        <div class="profile-stats-grid" id="profileStatsGrid">
+          <div class="profile-stat">
+            <div class="profile-stat-label">Total Questions</div>
+            <div class="profile-stat-value" id="pfTotal">0</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-label">Solved</div>
+            <div class="profile-stat-value" id="pfSolved">0</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-label">Completion</div>
+            <div class="profile-stat-value" id="pfCompletion">0%</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-label">Current Streak</div>
+            <div class="profile-stat-value" id="pfStreak">🔥 0</div>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button class="btn-signout" id="profileSignoutBtn">
+            <span>⎋</span> Sign Out
+          </button>
+        </div>
       </div>
     </section>
 

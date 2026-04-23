@@ -310,7 +310,7 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:8000';
+    const API_BASE = 'http://127.0.0.1:8000';
 
     // ── Cursor ──────────────────────────────────────────────────────────────────
     const cursor = document.getElementById('cursor');
@@ -468,13 +468,22 @@
           }),
         });
 
-        const data = await res.json();
+        const body = await res.json().catch(() => null);
 
-        if (!res.ok) {
-          showAlert('error', data.detail || 'Signup failed. Try a different email.');
+        if (!res.ok || !body || body.success === false) {
+          const msg = (body && body.message) || 'Signup failed. Try a different email.';
+          showAlert('error', msg);
         } else {
-          showAlert('success', 'Account created! Redirecting to login...');
-          setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+          // Backend returns a token on signup — store it and go straight to the app.
+          const token = body.data && body.data.access_token;
+          if (token) {
+            localStorage.setItem('devprep_token', token);
+            showAlert('success', 'Account created! Redirecting...');
+            setTimeout(() => { window.location.href = 'index.html'; }, 800);
+          } else {
+            showAlert('success', 'Account created! Redirecting to login...');
+            setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+          }
         }
       } catch (err) {
         showAlert('error', 'Cannot reach server. Is it running?');
