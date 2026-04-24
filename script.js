@@ -470,6 +470,7 @@ function rerenderAll() {
 }
 
 // Topic autocomplete
+function updateTopicSuggestions() {
   const value  = dom.qTopic.value.trim().toLowerCase();
   const topics = Array.from(new Set(questions.map((q) => q.topic))).filter(Boolean);
   const filtered = topics
@@ -494,6 +495,7 @@ function rerenderAll() {
     });
   });
 }
+
 
 // Toast
 function showToast(message, type = 'success') {
@@ -584,8 +586,6 @@ function closeModal() {
   dom.modalOverlay.classList.remove('open');
 }
 
-<<<<<<< HEAD
-=======
 // ── Daily Challenge (dashboard) ─────────────────────────────────────────────
 async function loadDailyChallenge() {
   if (!dom.dailyBody) return;
@@ -744,8 +744,6 @@ async function trackFromDiscover(slug, triggerBtn) {
     setBusy(triggerBtn, false);
   }
 }
-
->>>>>>> 0d93707014d1f1c8b5aa7e64d863b5167664a338
 
 function getInitials(name, email) {
   const source = (name || email || '?').trim();
@@ -1153,12 +1151,8 @@ async function init() {
   initializeParticles();
   playLoader();
   await Promise.all([loadCurrentUser(), refreshAll()]);
-<<<<<<< HEAD
-  renderProfile(); 
-=======
   renderProfile(); // ensure stats re-render once both user and analytics arrived
   loadDailyChallenge(); // fire and forget — doesn't block UI
->>>>>>> 0d93707014d1f1c8b5aa7e64d863b5167664a338
 }
 
 document.addEventListener('DOMContentLoaded', init);
